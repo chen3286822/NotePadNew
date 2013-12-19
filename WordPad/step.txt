@@ -1,0 +1,34 @@
+Given a user
+Given a poster
+Given a seller
+Given any user
+Given a BS Customer
+Given a buyer
+Given a user open homepage
+Given a user open login page
+Given a logined user
+Given a logined dealer
+Given a loggedIn buyer with email "$email$" & password "$password$"
+
+When I navigate to $page$
+When I navigate to browse "$category$" in "$place$"
+When navigate to a view item page of "$category$" category
+When navigate to dealer's view item page - cars ad
+When navigate to dealer's view item page - Non-cars ad
+When navigate to private seller's view item page
+When I navigate to search "$something$\" in "$category$" in "$place$" 
+When go to page $pagenumber$
+When I login email box	Login the email box
+When I go to ViewItemPage with adId "$adId$"
+
+When fill ad info in $category category with $type$ type
+When post ad in $category$ category with $type$ type
+When post ad in $category$ category with $type$ type with "$parameters$"
+
+Then search page should display $sometext$
+Then VIP should display $sometext$
+Then search page should not display $sometext$
+Then VIP should not display $sometext$
+Then complete ad page should display $sometext$
+Then complete ad page should not display $sometext$
+Then I should see text \"$sometext$\" in $page$
