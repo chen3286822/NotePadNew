@@ -8,6 +8,7 @@ using namespace System::Data;
 using namespace System::Drawing;
 using namespace System::IO ;
 using namespace System::Drawing ::Printing ;
+using namespace System::Drawing;
 #include "SearchForm1.h"
 #include "ReplaceForm.h"
 #include  "AboutForm.h"
@@ -172,6 +173,7 @@ private: System::Windows::Forms::ListBox^  TipBox;
 		vector<String^> m_VDatabase;
 		int m_nIndex;		//记录开始识别的位置
 		bool m_bNeedProcessTextChanged;	//标记是否需要textChanged事件处理
+private: System::Windows::Forms::ToolTip^  toolTip;
 
 #pragma region Windows Form Designer generated code
 		/// <summary>
@@ -249,6 +251,7 @@ private: System::Windows::Forms::ListBox^  TipBox;
 			this->fontDialog1 = (gcnew System::Windows::Forms::FontDialog());
 			this->colorDialog1 = (gcnew System::Windows::Forms::ColorDialog());
 			this->TipBox = (gcnew System::Windows::Forms::ListBox());
+			this->toolTip = (gcnew System::Windows::Forms::ToolTip(this->components));
 			this->menuStrip1->SuspendLayout();
 			this->toolStrip1->SuspendLayout();
 			this->contextMenuStrip1->SuspendLayout();
@@ -751,7 +754,8 @@ private: System::Windows::Forms::ListBox^  TipBox;
 			this->TipBox->Size = System::Drawing::Size(204, 123);
 			this->TipBox->TabIndex = 3;
 			this->TipBox->Visible = false;
-			this->TipBox->KeyDown += gcnew System::Windows::Forms::KeyEventHandler(this, &MainForm::pressEnterOnTipBox);
+			this->TipBox->SelectedIndexChanged += gcnew System::EventHandler(this, &MainForm::selectIndexChangedOnTipBox);
+			this->TipBox->KeyDown += gcnew System::Windows::Forms::KeyEventHandler(this, &MainForm::keyDownOnTipBox);
 			this->TipBox->MouseDoubleClick += gcnew System::Windows::Forms::MouseEventHandler(this, &MainForm::mouseDoubleClickOnTipBox);
 			// 
 			// MainForm
@@ -1198,45 +1202,16 @@ private: System::Void textChanged(System::Object^  sender, System::EventArgs^  e
 			 if (m_bNeedProcessTextChanged)
 			 {
 				 String^ text = this->txtBoxMain->Text;
-				 bool needSetTipBox = true;
-				 if (m_nIndex == -1)
+				 //取得当前光标所在行的匹配位置，即当前行的开头
+				 m_nIndex = 0;
+				 array<String^>^ lines = this->txtBoxMain->Text->Substring(0,this->txtBoxMain->SelectionStart)->Split('\n');
+				 for (int i=0;i<lines->Length - 1;i++)
 				 {
-					 //如果没有开始记录，且当前位置之前是一个空格、换行\r、句号. 则开始记录
-					 int cursorPos = this->txtBoxMain->SelectionStart;
-					 if(cursorPos == 0 || cursorPos == 1)
-						 m_nIndex = 0;
-					 else
-					 {
-						 Char lastChar = text[cursorPos-1];
-						 if (lastChar == ' ' || lastChar == '\n' || lastChar == '\r' || lastChar == '.' || lastChar == ',' || lastChar == ';')
-						 {
-							 m_nIndex = cursorPos;
-						 }
-					 }
+					 m_nIndex += lines[i]->Length;
+					 //加上换行
+					 m_nIndex += 1;
 				 }
-				 else
-				 {
-					 //开始记录后，但是依旧遇到了空格等特殊字符，且当时没有listbox显示，则重新进行记录
-					 if (TipBox->Enabled == false && TipBox->Visible == false)
-					 {
-						 //是不是真的没有匹配了
-						 needSetTipBox = !SetTipBox(); 
-						 if(needSetTipBox)
-						 {
-							 int cursorPos = this->txtBoxMain->SelectionStart;
-							 if(cursorPos >= 1)
-							 {
-								 Char lastChar = text[cursorPos-1];
-								 if (lastChar == ' ' || lastChar == '\n' || lastChar == '\r' || lastChar == '.' || lastChar == ',' || lastChar == ';')
-								 {
-									 m_nIndex = cursorPos;
-								 }
-							 }
-						 }						 
-					 }
-				 }
-				 if(needSetTipBox)
-					SetTipBox();
+				SetTipBox();
 			 }
 			 
 		 }
@@ -1257,41 +1232,69 @@ private: System::Void pressEnterOnTextBox(System::Object^  sender, System::Windo
 			 else if (e->KeyCode ==  Keys::Up)
 			 {
 				 if(TipBox->SelectedIndex > 0)
+				 {
 					 TipBox->SelectedIndex--;
+				 }
+				 if (TipBox->Visible == true && TipBox->Enabled == true)
+				 {
+					 //拦截光标移动
+					 e->SuppressKeyPress = true;
+				 }
+				 
 			 }
 			 else if (e->KeyCode == Keys::Down)
 			 {
 				 if(TipBox->SelectedIndex < TipBox->Items->Count - 1)
+				 {
 					 TipBox->SelectedIndex++;
+				 }			
+				 if (TipBox->Visible == true && TipBox->Enabled == true)
+				 {
+					 //拦截光标移动
+					 e->SuppressKeyPress = true;
+				 }
 			 }
 		 }
-private: System::Void pressEnterOnTipBox(System::Object^  sender, System::Windows::Forms::KeyEventArgs^  e) {
-			 AddSelectString();
+private: System::Void keyDownOnTipBox(System::Object^  sender, System::Windows::Forms::KeyEventArgs^  e) {
+			 if (e->KeyCode == Keys::Enter)
+			 {
+				 AddSelectString();
+			 }
+			 
 		 }
 
 		 bool SetTipBox()
 		 {
 			 String^ text = this->txtBoxMain->Text;
-			 if (m_nIndex < text->Length && m_nIndex >= 0)
+			 bool result = true;
+			 TipBox->Items->Clear();
+			 if(this->txtBoxMain->SelectionStart < m_nIndex)
 			 {
-				 String^ testString = text->Substring(m_nIndex);
-				 TipBox->Items->Clear();
-				 TipBox->BeginUpdate();
-				 for (vector<String^>::iterator it=m_VDatabase.begin();it!=m_VDatabase.end();it++)
+				 result = false;		
+			 }
+			 else
+			 {
+				 String^ testString = text->Substring(m_nIndex,this->txtBoxMain->SelectionStart-m_nIndex);
+				 if (String::IsNullOrEmpty(testString))
 				 {
-					 String^ matchString = *it;
-					 matchString->ToUpper();
-					 if(matchString->StartsWith(testString->ToUpper()))
-					 {
-						 if(TipBox->Enabled == false && TipBox->Visible == false)
-						 {
-							 TipBox->Enabled = true;
-							 TipBox->Show();
-						 }					 
-						 TipBox->Items->Add(*it);
-					 }
+					 result = false;
 				 }
-				 TipBox->EndUpdate();
+				 else
+				 {
+					 TipBox->BeginUpdate();
+					 for (vector<String^>::iterator it=m_VDatabase.begin();it!=m_VDatabase.end();it++)
+					 {
+						 String^ matchString = *it;
+						 matchString = matchString->ToUpper();
+						 if(matchString->StartsWith(testString->ToUpper()))
+						 {			 
+							 TipBox->Items->Add(*it);
+						 }
+					 }
+					 TipBox->EndUpdate();
+				 }
+
+				 
 				 if(TipBox->Items->Count > 0)
 				 {
 					 TipBox->SetSelected(0,true);
@@ -1300,23 +1303,19 @@ private: System::Void pressEnterOnTipBox(System::Object^  sender, System::Window
 					 pos.X += 20;
 					 pos.Y += 60;
 					 TipBox->Location = pos;
-					 return true;
+					 result = true;
 				 }
 				 else
 				 {
-					 TipBox->Hide();
-					 TipBox->Enabled = false;
-					 return false;
+					 result = false;
 				 }
-			 }	
-			 else
-			 {
-				 if(m_nIndex >= text->Length)
-					 m_nIndex = this->txtBoxMain->SelectionStart;
-				 TipBox->Hide();
-				 TipBox->Enabled = false;
-				 return false;
 			 }
+
+			 TipBox->Enabled = result;
+			 TipBox->Visible = result;
+			 ShowOrHideToolTip();
+
+			 return result;
 		 }
 
 		 void AddSelectString()
@@ -1327,25 +1326,68 @@ private: System::Void pressEnterOnTipBox(System::Object^  sender, System::Window
 				 m_bNeedProcessTextChanged = false;
 
 				 //先移除匹配的部分，然后接上选中的项
-				 this->txtBoxMain->Text = this->txtBoxMain->Text->Substring(0,m_nIndex);
+				 String^ head = this->txtBoxMain->Text->Substring(0,m_nIndex);
+				 String^ tail = this->txtBoxMain->Text->Substring(this->txtBoxMain->SelectionStart);
+				 this->txtBoxMain->Text = head;
 				 this->txtBoxMain->AppendText(TipBox->SelectedItem->ToString());
+				 //记录覆盖时的结尾，为了将光标移动过去
+				 int lastPos = this->txtBoxMain->Text->Length;
+				 this->txtBoxMain->AppendText(tail);
+				 //移动光标
+				 this->txtBoxMain->SelectionStart = lastPos;
 
 				 //重新让TextChanged有效
 				 m_bNeedProcessTextChanged = true;
-
-				 //重置记录器
-				 //m_nIndex = -1;
 
 				 //指向要修改的文本变量
 				 Int32 flag = TipBox->SelectedItem->ToString()->IndexOf("$",0);
 				 if (flag != -1)
 				 {
-					 Int32 tail = TipBox->SelectedItem->ToString()->IndexOf(" ",flag);
+					 Int32 tail = TipBox->SelectedItem->ToString()->IndexOf("$",flag+1);
+					 if (tail != -1)
+					 {
+						 //要保证flag和tail之间没有空格以及换行、进格等
+						 String^ variable = TipBox->SelectedItem->ToString()->Substring(flag+1,tail-flag-1);
+						 if (!variable->Contains(" ") && !variable->Contains("\n") && !variable->Contains("\r"))
+						 {
+							 //确定找到了该变量，将光标移至变量开头，并且选中整个变量，包含$符号
+							 this->txtBoxMain->SelectionStart = flag + m_nIndex;
+							 this->txtBoxMain->SelectionLength = tail - flag + 1;
+						 }
+					 }
 				 }
 
 				 TipBox->Enabled = false;
 				 TipBox->Hide();
+				 ShowOrHideToolTip();
 			 }			 
+		 }
+private: System::Void selectIndexChangedOnTipBox(System::Object^  sender, System::EventArgs^  e) {
+			 ShowOrHideToolTip();
+		 }
+
+		 void ShowOrHideToolTip()
+		 {
+			 if (TipBox->Enabled == true && TipBox->Visible == true && TipBox->SelectedIndex != -1)
+			 {
+				 //获取TipBox绘制位置
+				 Rectangle^ rect = TipBox->Bounds;
+				 this->toolTip->Active = true; 
+				 //获取解释
+				 String^ explanation = TipBox->SelectedItem->ToString();
+				 String^ newToolTip;
+				 //限制长度
+				 for (int i=0;i<explanation->Length/20;i++)
+				 {
+					 newToolTip += explanation->Substring(i*20,20);
+					 newToolTip += Environment::NewLine;
+				 }
+				 this->toolTip->Show(newToolTip,TipBox,rect->Width,0);
+			 }
+			 else
+			 {
+				 this->toolTip->Active = false;
+			 }
 		 }
 };
   }
