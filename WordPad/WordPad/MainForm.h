@@ -16,6 +16,7 @@ using namespace System::Drawing;
 #include  "AboutForm.h"
 #include "ToForm1.h"
 #include <cliext/vector>
+#include <cliext/map>
 #using <system.dll>
 using namespace cliext;
 
@@ -45,7 +46,17 @@ namespace WordPad {
 			while (!reader->EndOfStream)
 			{
 				String^ sentense = reader->ReadLine();
-				m_VDatabase.push_back(sentense);
+				array<String^>^ seperation = gcnew array<String^>{"~~"};
+				array<String^>^ result = sentense->Split(seperation,2,StringSplitOptions::RemoveEmptyEntries);
+				if(result->Length >= 1)
+				{
+					if(result->Length >= 2)
+						m_MDatabase[result[0]] = result[1];
+					else
+						m_MDatabase[result[0]] = "";
+				}
+				else
+					continue;			
 			}
 			m_nIndex = -1;
 			m_bNeedProcessTextChanged = true;
@@ -173,7 +184,8 @@ namespace WordPad {
 		/// <summary>
 		/// 必需的设计器变量。
 		/// </summary>
-		vector<String^> m_VDatabase;
+		map<String^,String^> m_MDatabase;
+		vector<String^> m_VExpalantion;
 		int m_nIndex;		//记录开始识别的位置
 		bool m_bNeedProcessTextChanged;	//标记是否需要textChanged事件处理
 		static int m_snCharsPerLine = 20;
@@ -1373,13 +1385,13 @@ namespace WordPad {
 					 else
 					 {
 						 TipBox->BeginUpdate();
-						 for (vector<String^>::iterator it=m_VDatabase.begin();it!=m_VDatabase.end();it++)
+						 for (map<String^,String^>::iterator it=m_MDatabase.begin();it!=m_MDatabase.end();it++)
 						 {
-							 String^ matchString = *it;
+							 String^ matchString = it->first;
 							 matchString = matchString->ToUpper();
 							 if(matchString->StartsWith(testString->ToUpper()))
 							 {			 
-								 TipBox->Items->Add(*it);
+								 TipBox->Items->Add(it->first);
 							 }
 						 }
 						 TipBox->EndUpdate();
@@ -1502,7 +1514,10 @@ namespace WordPad {
 					 //获取TipBox绘制位置
 					 Rectangle^ rect = TipBox->Bounds;
 					 //获取解释
-					 String^ explanation = TipBox->SelectedItem->ToString();
+					 String^ explanation;
+					 map<String^,String^>::iterator it = m_MDatabase.find(TipBox->SelectedItem->ToString());
+					 if(it != m_MDatabase.end())
+						 explanation = it->second;
 					 String^ newToolTip;
 					 //限制长度
 					 int i=0;
