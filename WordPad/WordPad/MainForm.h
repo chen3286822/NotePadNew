@@ -1538,7 +1538,8 @@ namespace WordPad {
 						 newToolTip += Environment::NewLine;
 					 }
 					 newToolTip += explanation->Substring(i*m_snCharsPerLine,explanation->Length-i*m_snCharsPerLine);
-					 this->toolTip->Show(newToolTip,TipBox,rect->Width,0);
+					 //this->toolTip->Show(newToolTip,TipBox,rect->Width,0);
+					 this->toolTip->SetToolTip(TipBox,newToolTip);
 					 //this->toolTip->Active = true;
 				 }
 				 else
